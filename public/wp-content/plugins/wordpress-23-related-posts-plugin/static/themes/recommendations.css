@@ -1,0 +1,15 @@
+ul.related_post li a {word-wrap: break-word;}
+ul.related_post li.wp_rp_promoted a {position:relative;}
+ul.related_post li.wp_rp_remote a {position:relative;}
+
+ul.related_post li div.remove_x {
+	position: absolute;
+	top: -13px;
+	right: -13px;
+	width: 26px;
+	height: 26px;
+	background: url(../img/x_btn.png) no-repeat;
+	cursor: pointer;
+	display: none;
+}
+ul.related_post li:hover div.remove_x { display: block; }

@@ -1,0 +1,266 @@
+<?php
+
+namespace VersionPress\Utils;
+
+use Exception;
+use Nette\Utils\Strings;
+use Symfony\Component\Process\Process;
+use Utils\SystemInfo;
+use VersionPress\Database\DbSchemaInfo;
+use wpdb;
+
+class RequirementsChecker {
+    private $requirements = array();
+    
+
+    private $database;
+    
+
+    private $schema;
+
+    public static $compatiblePlugins = array(
+        'akismet' => 'akismet/akismet.php',
+        'advanced-custom-fields' => 'advanced-custom-fields/acf.php',
+        'hello-dolly' => 'hello-dolly/hello.php',
+        '_hello-dolly' => 'hello.php',
+        'versionpress' => 'versionpress/versionpress.php',
+    );
+
+    public static $incompatiblePlugins = array(
+        'wp-super-cache' => 'wp-super-cache/wp-cache.php'
+    );
+
+    function __construct($wpdb, DbSchemaInfo $schema) {
+
+        $this->database = $wpdb;
+        $this->schema = $schema;
+
+        $this->requirements[] = array(
+            'name' => 'PHP 5.3',
+            'level' => 'critical',
+            'fulfilled' => version_compare(PHP_VERSION, '5.3.0', '>='),
+            'help' => 'PHP 5.3 is currently required. We might support PHP 5.2 (the minimum WordPress-required PHP version) in some future update.'
+        );
+
+        $this->requirements[] = array(
+            'name' => 'Execute external commands',
+            'level' => 'critical',
+            'fulfilled' => $this->tryRunProcess(),
+            'help' => 'PHP function `proc_open()` must be enabled as VersionPress uses it to execute Git commands. Please update your php.ini.'
+        );
+
+        $gitCheckResult = $this->tryGit();
+
+        switch ($gitCheckResult) {
+
+            case "no-git":
+                $gitHelpMessage = '[Git](http://git-scm.com/) must be installed on the server. If you think it is then it\'s probably not visible to the web server user – please update its PATH. Alternatively, [configure VersionPress](http://docs.versionpress.net/en/getting-started/configuration#git-binary) to use specific Git binary. [Learn more](http://docs.versionpress.net/en/getting-started/installation-uninstallation#git).';
+                break;
+
+            case "wrong-version":
+                $gitHelpMessage = 'Git version ' . SystemInfo::getGitVersion() . ' detected with which there are known issues. Please install at least version ' . self::GIT_MINIMUM_REQUIRED_VERSION . ' (this can be done side-by-side and VersionPress can be [configured](http://docs.versionpress.net/en/getting-started/configuration#git-binary) to use that specific Git version). [Learn more](http://docs.versionpress.net/en/getting-started/installation-uninstallation#git).';
+                break;
+
+            default:
+                $gitHelpMessage = "";
+        }
+
+        $this->requirements[] = array(
+            'name' => 'Git ' . self::GIT_MINIMUM_REQUIRED_VERSION . '+ installed',
+            'level' => 'critical',
+            'fulfilled' => $gitCheckResult == "ok",
+            'help' => $gitHelpMessage
+        );
+
+        $this->requirements[] = array(
+            'name' => 'Write access on the filesystem',
+            'level' => 'critical',
+            'fulfilled' => $this->tryWrite(),
+            'help' => 'VersionPress needs write access in the site root, its nested directories and the <abbr title="' . sys_get_temp_dir() . '" style="border-bottom: 1px dotted; border-color: inherit;">system temp directory</abbr>. Please update the permissions.'
+        );
+
+        $this->requirements[] = array(
+            'name' => 'wpdb hook',
+            'level' => 'critical',
+            'fulfilled' => is_writable(ABSPATH . WPINC . '/wp-db.php'),
+            'help' => 'For VersionPress to do its magic, it needs to change the `wpdb` class and put some code there. ' .
+                'To do so it needs write access to the `wp-includes/wp-db.php` file. Please update the permissions.'
+        );
+
+        $this->requirements[] = array(
+            'name' => 'Not multisite',
+            'level' => 'critical',
+            'fulfilled' => !is_multisite(),
+            'help' => 'Currently VersionPress does not support multisites. Stay tuned!'
+        );
+
+        $this->requirements[] = array(
+            'name' => 'Standard directory layout',
+            'level' => 'critical',
+            'fulfilled' => $this->testDirectoryLayout(),
+            'help' => 'It\'s necessary to use standard WordPress directory layout with the current version of VersionPress.'
+        );
+
+        $this->requirements[] = array(
+            'name' => '.gitignore',
+            'level' => 'critical',
+            'fulfilled' => $this->testGitignore(),
+            'help' => 'It seems you have already created .gitignore file in the site root. It\'s necessary to add some rules for VersionPress. Please add those from `wp-content/plugins/versionpress/src/Initialization/.gitignore.tpl`.'
+        );
+
+        $this->requirements[] = array(
+            'name' => 'Access rules can be installed',
+            'level' => 'warning',
+            'fulfilled' => $this->tryAccessControlFiles(),
+            'help' => 'VersionPress automatically tries to secure certain locations, like `wp-content/vpdb`. You either don\'t have a supported web server or rules cannot be enforced. [Learn more](http://docs.versionpress.net/en/getting-started/installation-uninstallation#supported-web-servers).'
+        );
+
+        $setTimeLimitEnabled = (false === strpos(ini_get("disable_functions"), "set_time_limit"));
+        $countOfEntities = $this->countEntities();
+
+        if ($setTimeLimitEnabled) {
+            $help = "The initialization will take a little longer. This website contains $countOfEntities entities, which is a lot.";
+        } else {
+            $help = "The initialization may not finish. This website contains $countOfEntities entities, which is a lot.";
+        }
+
+        $this->requirements[] = array(
+            'name' => 'Web size',
+            'level' => 'warning',
+            'fulfilled' => $countOfEntities < 500,
+            'help' => $help
+        );
+
+        $unsupportedPluginsCount = $this->testExternalPlugins();
+        $externalPluginsHelp = "You run $unsupportedPluginsCount external ". ($unsupportedPluginsCount == 1 ? "plugin" : "plugins") ." we have not tested yet. <a href='http://docs.versionpress.net/en/feature-focus/external-plugins'>Read more about 3rd party plugins support.</a>";
+
+        $this->requirements[] = array(
+            'name' => 'External plugins',
+            'level' => 'warning',
+            'fulfilled' => $unsupportedPluginsCount == 0,
+            'help' => $externalPluginsHelp
+        );
+
+        $this->everythingFulfilled = array_reduce($this->requirements, function ($carry, $requirement) {
+            return $carry && ($requirement['fulfilled'] || $requirement['level'] === 'warning');
+        }, true);
+
+    }
+
+    public function getRequirements() {
+        return $this->requirements;
+    }
+
+    public function isEverythingFulfilled() {
+        return $this->everythingFulfilled;
+    }
+
+    private function tryRunProcess() {
+        try {
+            $process = new Process("echo test");
+            $process->run();
+            return true;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
+    private function tryGit() {
+        try {
+            $gitVersion = SystemInfo::getGitVersion();
+            return self::gitMatchesMinimumRequiredVersion($gitVersion) ? "ok" : "wrong-version";
+        } catch (Exception $e) {
+            return "no-git";
+        }
+    }
+
+    private function tryWrite() {
+        $filename = ".vp-try-write";
+        $testPaths = array(
+            ABSPATH,
+            WP_CONTENT_DIR,
+            sys_get_temp_dir()
+        );
+
+        $writable = true;
+
+        foreach ($testPaths as $directory) {
+            $filePath = $directory . '/' . $filename;
+            
+
+            @file_put_contents($filePath, "");
+            $writable &= is_file($filePath);
+            FileSystem::remove($filePath);
+        }
+
+        return $writable;
+    }
+
+    private function tryAccessControlFiles() {
+        $securedUrl = site_url() . '/wp-content/plugins/versionpress/temp/security-check.txt';
+        
+
+        return @file_get_contents($securedUrl) === false; 
+    }
+
+    private function testGitignore() {
+        $gitignorePath = ABSPATH . '.gitignore';
+        $gitignoreExists = is_file($gitignorePath);
+        if (!$gitignoreExists) {
+            return true;
+        }
+
+        $gitignoreContainsVersionPressRules = Strings::contains(file_get_contents($gitignorePath), 'plugins/versionpress');
+        return $gitignoreContainsVersionPressRules;
+    }
+
+    private function testDirectoryLayout() {
+        $uploadDirInfo = wp_upload_dir();
+
+        $isStandardLayout = true;
+        $isStandardLayout &= ABSPATH . 'wp-content' === WP_CONTENT_DIR;
+        $isStandardLayout &= WP_CONTENT_DIR . '/plugins' === WP_PLUGIN_DIR;
+        $isStandardLayout &= WP_CONTENT_DIR . '/themes' === get_theme_root();
+        $isStandardLayout &= WP_CONTENT_DIR . '/uploads' === $uploadDirInfo['basedir'];
+
+        return $isStandardLayout;
+    }
+
+    const GIT_MINIMUM_REQUIRED_VERSION = "1.9";
+
+    public static function gitMatchesMinimumRequiredVersion($gitVersion, $minimumRequiredVersion = null) {
+        $minimumRequiredVersion = $minimumRequiredVersion ? $minimumRequiredVersion : self::GIT_MINIMUM_REQUIRED_VERSION;
+        return version_compare($gitVersion, $minimumRequiredVersion, ">=");
+
+    }
+
+    private function getNeededExecutionTime() {
+
+        $entityCount = $this->countEntities();
+        $okTreshold = 500 / 30; 
+        return $entityCount / $okTreshold;
+    }
+
+    private function countEntities() {
+        $entities = $this->schema->getAllEntityNames();
+        $totalEntitiesCount = 0;
+
+        foreach ($entities as $entity) {
+            $table = $this->schema->getPrefixedTableName($entity);
+            $totalEntitiesCount += $this->database->get_var("SELECT COUNT(*) FROM $table");
+        }
+
+        return $totalEntitiesCount;
+    }
+
+    private function testExternalPlugins() {
+        $plugins = get_option('active_plugins');
+        $unsupportedPluginsCount = 0;
+        foreach($plugins as $plugin) {
+            if(!in_array($plugin, self::$compatiblePlugins)) {
+                $unsupportedPluginsCount++;
+            }
+        }
+        return $unsupportedPluginsCount;
+    }
+}

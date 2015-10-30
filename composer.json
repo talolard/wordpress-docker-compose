@@ -1,0 +1,60 @@
+{
+    "name": "xyu/heroku-wp",
+    "description": "A template for installing and running WordPress on Heroku",
+    "license": "MIT",
+    "require-dev": {
+        "heroku/heroku-buildpack-php": "dev-master"
+    },
+    "require": {
+        "hhvm": "~3.2",
+        "WordPress/WordPress": "*",
+        "wpackagist-plugin/wpro": "~1",
+        "wpackagist-plugin/sendgrid-email-delivery-simplified": "~1",
+        "wpackagist-plugin/authy-two-factor-authentication": "~2",
+        "wpackagist-plugin/akismet": "~2",
+        "wpackagist-plugin/all-in-one-seo-pack": "~2",
+        "wpackagist-plugin/contact-form-7": "~3.5",
+        "wpackagist-plugin/download-monitor": "~1.6",
+        "wpackagist-plugin/wp-csv": "~1",
+        "wpackagist-plugin/swift-mailer": "~4",
+        "wpackagist-plugin/public-post-preview": "~2.4",
+        "wpackagist-plugin/wp-author-box-lite": "~1.0.4",
+        "wpackagist-plugin/disqus-comment-system": "~2.83",
+        "wpackagist-plugin/wp-markdown": "1.5.1"
+    },
+    "repositories": [
+        {
+            "type": "package",
+            "package": {
+                "name": "WordPress/WordPress",
+                "version": "4.1",
+                "dist": {
+                    "type": "zip",
+                    "url": "https://github.com/WordPress/WordPress/archive/4.1.zip"
+                }
+            }
+        },
+        {
+            "type":"composer",
+            "url":"http://wpackagist.org"
+        }
+    ],
+    "extra": {
+        "installer-paths": {
+            "vendor/WordPress/WordPress/wp-content/mu-plugins/{$name}/": [ "type:wordpress-muplugin" ],
+            "vendor/WordPress/WordPress/wp-content/plugins/{$name}/": [ "type:wordpress-plugin" ],
+            "vendor/WordPress/WordPress/wp-content/themes/{$name}/": [ "type:wordpress-theme" ]
+        }
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "rm -rf tmp/public.building tmp/public.old",
+            "mkdir -p tmp/public.building",
+            "cp -R vendor/WordPress/WordPress/* tmp/public.building",
+            "cp -R public/* tmp/public.building",
+            "touch public.built",
+            "mv public.built tmp/public.old && mv tmp/public.building public.built",
+            "rm -rf tmp/public.old"
+        ]
+    }
+}

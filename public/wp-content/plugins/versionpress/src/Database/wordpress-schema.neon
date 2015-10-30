@@ -1,0 +1,54 @@
+post:
+    table: posts
+    id: ID
+    references:
+        post_author: user
+        post_parent: post
+    mn-references:
+        term_relationships.term_taxonomy_id: term_taxonomy
+
+postmeta:
+    id: meta_id
+    references:
+        post_id: post
+    value-references:
+        meta_key@meta_value:
+            _thumbnail_id: post
+            _menu_item_object_id: @\VersionPress\Database\VpidRepository::getMenuReference
+            _menu_item_menu_item_parent: post
+
+comment:
+    table: comments
+    id: comment_ID
+    references:
+        comment_post_ID: post
+        user_id: user
+        comment_parent: comment
+
+user:
+    table: users
+    id: ID
+
+term:
+    table: terms
+    id: term_id
+
+term_taxonomy:
+    id: term_taxonomy_id
+    references:
+        parent: term_taxonomy
+        term_id: term
+    mn-references:
+        @term_relationships.object_id: post
+
+usermeta:
+    id: umeta_id
+    references:
+        user_id: user
+
+option:
+    table: options
+    vpid: option_name
+    value-references:
+        option_name@option_value:
+            site_icon: post

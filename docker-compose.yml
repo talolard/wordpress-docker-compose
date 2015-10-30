@@ -1,0 +1,15 @@
+web:
+  image: hackingdata
+  ports:
+    - "80:80"
+  links:
+    - mysql
+    - memcache
+mysql:
+  image: orchardup/mysql
+  ports:
+    - "3306:3306"
+memcache:
+  image: memcached
+  environment:
+    MYSQL_DATABASE: wordpress

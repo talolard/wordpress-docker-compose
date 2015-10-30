@@ -1,0 +1,8 @@
+<wpml-config>
+    <admin-texts>
+        <key name='wp_rp_options'>
+            <key name='related_posts_title' />
+            <key name='related_posts_title' />
+        </key>
+    </admin-texts>
+</wpml-config>

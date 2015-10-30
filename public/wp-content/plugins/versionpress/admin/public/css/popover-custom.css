@@ -1,0 +1,43 @@
+.webui-popover p {
+    font-size: 13px;
+    font-family: "Open Sans", sans-serif;
+    margin: 1em 0;
+    line-height: 1.5;
+}
+
+.webui-popover a {
+    color: #0074a2;
+    text-decoration: underline;
+}
+
+.webui-popover .spinner {
+    display: block;
+    float: none;
+    margin: 17px auto 6px;
+}
+
+.webui-popover .webui-popover-title .title-content {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -o-text-overflow: ellipsis;
+    width: 94%
+}
+
+.webui-popover .button-container {
+    margin-top: 15px;
+    text-align: center;
+}
+
+.webui-popover .arrow {
+    overflow: auto;
+    left: auto;
+    margin-left: auto;
+    bottom: auto;
+    z-index: auto;
+}
+
+.webui-popover-title em {
+    font-weight: normal;
+    font-style: normal;
+}
