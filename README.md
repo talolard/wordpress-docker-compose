@@ -8,9 +8,9 @@ QuickStart
 * [Install docker-compose](https://docs.docker.com/compose/install/)
 * Clone this repository    
 * run
- ```bash
+```bash
  docker-compose up
- ```
+```
     
 Adding your own themes
 ======================
