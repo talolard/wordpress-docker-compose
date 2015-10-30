@@ -18,7 +18,7 @@ Open the docker-compose.yml file
 It should look like this
 ```yml
 web:
-  image: hackingdata
+  image: talolard/easy-wordpress
   ports:
     - "80:80"
   links:
@@ -36,7 +36,7 @@ memcache:
 In the web section, under the links line add the following
 ```yml
 web:
-  image: hackingdata
+  image: talolard/easy-wordpress
   ports:
     - "80:80"
   links:
@@ -55,7 +55,7 @@ docker build -t tagforyourimage ./
 To test it, modify the docker-compose.yml, so that
 ```yml
 web:
-  image: hackingdata
+  image: talolard/easy-wordpress
 ```
 becomes
 ```yml
